@@ -1,0 +1,17 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+*.local
+
+# server local JSON data-store fallback (dev only — never commit real content/secrets)
+server/.data/
+
+# editor/OS
+.DS_Store
+Thumbs.db
+
+# logs
+*.log
+npm-debug.log*
