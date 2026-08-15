@@ -1,7 +1,7 @@
 import path from "node:path";
 import type { SiteContentEntry, SiteContentMap } from "@portfolio/shared";
 import { useSheetsAdapter } from "../config/env";
-import { readJsonArray, writeJsonArray } from "../lib/json-store";
+import { readJsonArray, updateJsonArray, writeJsonArray } from "../lib/json-store";
 import { getSheetsClient, SPREADSHEET_ID } from "../lib/google-sheets";
 
 /**
@@ -11,7 +11,9 @@ import { getSheetsClient, SPREADSHEET_ID } from "../lib/google-sheets";
  */
 export interface SiteContentRepo {
   getAll(): Promise<SiteContentEntry[]>;
+  getByKey(key: string): Promise<SiteContentEntry | undefined>;
   getMap(): Promise<SiteContentMap>;
+  /** Full replace of one entry — callers that only want to change some fields must merge first (see the admin route). */
   upsert(entry: SiteContentEntry): Promise<SiteContentEntry>;
   replaceAll(entries: SiteContentEntry[]): Promise<void>;
 }
@@ -26,17 +28,25 @@ class JsonSiteContentRepo implements SiteContentRepo {
     return readJsonArray<SiteContentEntry>(this.filePath);
   }
 
+  async getByKey(key: string): Promise<SiteContentEntry | undefined> {
+    return (await this.getAll()).find((e) => e.key === key);
+  }
+
   async getMap(): Promise<SiteContentMap> {
     const entries = await this.getAll();
     return Object.fromEntries(entries.map((e) => [e.key, e.value]));
   }
 
   async upsert(entry: SiteContentEntry): Promise<SiteContentEntry> {
-    const all = await this.getAll();
-    const idx = all.findIndex((e) => e.key === entry.key);
-    if (idx === -1) all.push(entry);
-    else all[idx] = entry;
-    await writeJsonArray(this.filePath, all);
+    // Single locked read-modify-write — see json-store.ts for why unlocked
+    // read-then-write races under concurrent requests.
+    await updateJsonArray<SiteContentEntry>(this.filePath, (all) => {
+      const idx = all.findIndex((e) => e.key === entry.key);
+      if (idx === -1) return [...all, entry];
+      const next = [...all];
+      next[idx] = entry;
+      return next;
+    });
     return entry;
   }
 
@@ -77,6 +87,10 @@ class SheetsSiteContentRepo implements SiteContentRepo {
     return rows
       .filter((row) => row[0])
       .map((row) => ({ key: row[0] ?? "", value: row[1] ?? "", label: row[2] ?? "", group: row[3] || "general" }));
+  }
+
+  async getByKey(key: string): Promise<SiteContentEntry | undefined> {
+    return (await this.getAll()).find((e) => e.key === key);
   }
 
   async getMap(): Promise<SiteContentMap> {

@@ -383,9 +383,125 @@ Legend: ✅ done · 🚧 in progress · ⬜ not started
 
 ## Phase 10 — Admin CMS
 
-- ⬜ CRUD for projects/blog/skills/experience/site-content (+ publish/feature/
-  reorder)
-- ⬜ Tiptap rich-text editor (sanitized output, images as URL fields)
+- ✅ Backend CRUD: `server/src/lib/admin-crud-route.ts` — generic
+  `requireAdminAuth`-gated router factory (list/get/create/update/delete[/
+  reorder]) shared by projects/blog/skills/experience, each a ~20-line call
+  site (`buildAdminCrudRouter<T, Input>({...})`) supplying its schema/repo
+  methods/cache-invalidator; mutating routes additionally gated behind
+  `requireCsrf` and record an audit-log row (`create`/`update`/`delete`/
+  `reorder`, `entityType`/`entityId`/`adminEmail`). `site-content` (key-keyed,
+  not id-keyed — list + `PUT /:key` upsert, no delete) and `audit-log`
+  (read-only, paginated) don't fit the shape and get their own small routers.
+  `sanitize` hooks run `sanitizeRichText` (DOMPurify allowlist) on
+  `longDescriptionHtml`/`contentHtml` before every create/update.
+- ✅ Fixed a real zod typing defect surfaced by `tsc --noEmit`: `ZodSchema<T>`
+  is a raw alias for the `ZodType` class in zod v3, so `ZodSchema<Input>`
+  reuses `Input` (the post-parse/output type, where a `.default()` field is
+  non-optional) for zod's own internal pre-parse type slot too (where that
+  same field is legitimately optional) — a genuine structural mismatch, not a
+  TS quirk. Fixed by loosening `inputSchema`/`updateInputSchema` to
+  `ZodTypeAny` on the shared factory's options type and casting only at the
+  two points of actual use (`validateBody(... as ZodSchema<Input>)` /
+  `ZodSchema<Partial<Input>>`), rather than a broad `any` sweep.
+- ✅ Manually verified every endpoint end-to-end against the running dev
+  server (`curl`, cookie jar, fresh login each pass): full create → get →
+  update → delete cycles for projects, blog, skills, experience, including a
+  `<script>` payload in `longDescriptionHtml`/`contentHtml` confirming
+  DOMPurify strips it on save; blog `readingTimeMinutes` recalculates from
+  word count on create; `POST /reorder` for projects/skills/experience;
+  `site-content` list + partial upsert; `audit-log` pagination; a mutating
+  request without `X-CSRF-Token` → 403 (the item explicitly deferred from
+  Phase 9's verification pending these endpoints); a deleted id → 404 on
+  subsequent GET. Confirmed all 31 rows written during this pass appear in
+  `GET /audit-log` with correct `action`/`entityType`/`entityId`/
+  `adminEmail`/timestamp, sorted newest-first.
+- ✅ Found and fixed two real backend bugs during that verification pass
+  (not superficial — both reproduced live against the running server):
+  - **Reorder race/corruption**: `POST /:entity/reorder` fired one
+    `update()` per id via `Promise.all`. Each `JsonTable.update()` did an
+    unlocked read-modify-write (`fs.writeFile`, not atomic against a
+    concurrent writer of the same path), so N concurrent calls interleaved
+    into lost updates and — reproduced live — a truncated/corrupted
+    `skills.json` (`Unexpected end of JSON input` on the next read). Fixed
+    two ways: `server/src/lib/json-store.ts` now serializes every read/write
+    to a given file through an in-process per-path lock queue and writes via
+    temp-file + atomic rename; and the reorder handler now does a single
+    `getAll()` → reindex → `replaceAll()` instead of N concurrent
+    `update()` calls (also cuts a reorder from N Sheets API calls to one,
+    in line with the plan's batched-writes-for-quota principle). Re-verified
+    reorder for skills/experience/projects post-fix, including restoring
+    original order, with no corruption.
+  - **Site-content partial-update data loss**: `PUT /site-content/:key`
+    validated the body against the full `siteContentEntrySchema` (`value`/
+    `label`/`group` all carry `.default()`), so a save that only intended to
+    change `value` — the realistic admin-form usage — silently reset
+    `label`/`group` to `""`/`"general"`, wiping the existing metadata.
+    Reproduced live against `hero.headline`. Fixed by validating against
+    `.partial()` instead, adding `SiteContentRepo.getByKey`, and merging the
+    partial body with the existing entry in the route before upserting;
+    also switched `JsonSiteContentRepo.upsert` onto the same locked
+    `updateJsonArray` used elsewhere. Re-verified: a `{value}`-only PUT now
+    preserves `label`/`group` and still sanitizes `value` via `stripHtml`.
+- ✅ `npm run typecheck` / `npm run lint` / `npm run build` clean across
+  `server` after both the zod-typing and the two bug fixes.
+- ✅ Frontend: generic `createAdminCrudHooks` factory (`hooks/admin/
+  useAdminCrud.ts`) wraps TanStack Query v5 list/get/create/update/delete/
+  reorder calls (invalidating the entity's list query on every mutation) so
+  each entity's hook file (`useAdminProjects`/`useAdminBlog`/
+  `useAdminSkills`/`useAdminExperience`) is a ~10-line call site rather than
+  duplicated query boilerplate; `useAdminSiteContent`/`useAdminAuditLog` are
+  bespoke (key-keyed upsert, paginated read) to match their non-standard
+  backend shapes.
+- ✅ Shared admin building blocks: `RichTextEditor` (Tiptap — bold/italic/
+  strike/headings/lists/quote/code-block/link/image(URL-only)/table/hr/
+  undo-redo toolbar, syncs `value`↔editor content without fighting live
+  typing), `ReorderableList` (Framer Motion `Reorder.Group`/`Reorder.Item`,
+  optimistic local order + a single batched commit on drop — matches the
+  Phase 10 backend fix), `ConfirmDeleteModal`, `TagListInput` (one-per-line
+  textarea for `string[]` fields), `AdminPageHeader`, plus new `Select`/
+  `Switch` UI primitives and a `LinkButton` (`motion.create(Link)`,
+  hover/tap feedback matching `Button`'s motion-patterns recipe, sharing a
+  `buttonClassNames` helper extracted into its own module so both stay
+  fast-refresh-friendly) for button-styled navigation.
+- ✅ Two CRUD UI shapes matched to each entity: **Projects** and **Blog**
+  get separate list + create/edit form pages (form pages share one
+  component keyed by presence of `:id`, since the field sets are identical);
+  **Skills** and **Experience** are simple enough to combine into a single
+  page — reorderable list + one modal that toggles between create/edit via
+  `reset(EMPTY_VALUES)` vs `reset(entity)`. `AdminSiteContentPage` groups
+  entries by section with an explicit (not auto-saving) per-row Save button
+  that only enables when the field is actually dirty. `AdminAuditLogPage` is
+  a paginated read-only table (`keepPreviousData` for flicker-free paging).
+- ✅ Real bug class caught and fixed twice: native `<input type="number"|
+  "date">` + react-hook-form's `register(...valueAsNumber)` turns an
+  emptied field into `NaN`/`""` rather than `undefined`/`null`, which fails
+  validation against the shared `.optional()`/`.nullable()` zod schemas
+  (`Skill.yearsExperience`, `Experience.endDate`). Fixed both by switching
+  to `Controller` with an explicit value-normalizing `onChange`. Experience
+  additionally forces `endDate: null` server-side whenever `isCurrent` is
+  true, regardless of stale form state.
+- ✅ All 10 routes (`/admin/projects(+/new,+/:id/edit)`, `/admin/blog(+/new,
+  +/:id/edit)`, `/admin/skills`, `/admin/experience`, `/admin/site-content`,
+  `/admin/audit-log`) wired into `App.tsx`, replacing their `RouteStub`
+  placeholders — only `/admin/analytics(+/:sessionId)` still stub out to
+  Phase 11.
+- ✅ `npm run typecheck` / `npm run lint` / `npm run build` clean across the
+  whole monorepo (`shared`, `server`, `client`) — two real errors caught and
+  fixed: `@tiptap/extension-table`'s `Table` is a named export, not default;
+  and `motion.create(Link)` conflicts with React Router's `LinkProps` over
+  the `onAnimationStart`/`onAnimationEnd`/`onDrag*` prop names (DOM event
+  handler types vs. Framer Motion's own animation-lifecycle prop types of
+  the same name) — fixed by omitting those specific DOM prop names from
+  `LinkButtonProps` rather than widening to `any`.
+- ✅ Full CRUD verified end-to-end against the running dev server via
+  `curl` with the real admin session (login → cookie jar → bearer token +
+  CSRF header), exercising exactly the request shapes the new frontend
+  hooks send: Skills create → update (`PUT`) → reorder → delete, Experience
+  create with `isCurrent: true` (`endDate` forced `null`), Site Content
+  partial `PUT` save. Confirmed matching `create`/`update`/`reorder`/
+  `delete` rows landed in the audit log for every action, then restored all
+  touched data (skills order, experience list) back to its original seeded
+  state.
 
 ## Phase 11 — Visitor analytics
 

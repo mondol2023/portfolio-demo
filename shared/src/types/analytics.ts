@@ -77,3 +77,11 @@ export type VisitorTimelineEntry = Pick<
   AnalyticsEvent,
   "type" | "path" | "eventName" | "eventLabel" | "timestamp"
 >;
+
+export type VisitorSessionDetail = {
+  session: VisitorSession;
+  timeline: VisitorTimelineEntry[];
+};
+
+export const visitorSortFields = ["firstSeen", "lastSeen", "pageCount", "durationSeconds"] as const;
+export type VisitorSortField = (typeof visitorSortFields)[number];

@@ -28,12 +28,22 @@ adminSiteContentRouter.get("/", async (_req: Request, res: Response, next: NextF
 adminSiteContentRouter.put(
   "/:key",
   requireCsrf,
-  validateBody(siteContentEntrySchema.omit({ key: true })),
+  // `.partial()`: a save that only means to change `value` (the common case —
+  // the admin form edits one field at a time) must not fall through zod's
+  // `.default()` on `label`/`group` and blow away the existing metadata.
+  validateBody(siteContentEntrySchema.omit({ key: true }).partial()),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const key = req.params.key as string;
-      const { value, label, group } = req.body as { value: string; label: string; group: string };
-      const entry = await siteContentRepo.upsert({ key, value: stripHtml(value), label, group });
+      const patch = req.body as { value?: string; label?: string; group?: string };
+      const existing = await siteContentRepo.getByKey(key);
+      const merged = {
+        key,
+        value: patch.value !== undefined ? stripHtml(patch.value) : (existing?.value ?? ""),
+        label: patch.label ?? existing?.label ?? "",
+        group: patch.group ?? existing?.group ?? "general",
+      };
+      const entry = await siteContentRepo.upsert(merged);
       invalidateSiteContentCache();
       await auditLogRepo.record({
         adminEmail: req.admin!.email,

@@ -12,6 +12,7 @@ export const adminSkillsRouter = buildAdminCrudRouter<Skill, SkillInput>({
   create: (input) => skillsRepo.create(input),
   update: (id, patch) => skillsRepo.updateSkill(id, patch),
   remove: (id) => skillsRepo.remove(id),
+  replaceAll: (records) => skillsRepo.replaceAll(records),
   invalidateCache: invalidateSkillsCache,
   sortForList: (a, b) => a.order - b.order,
   supportsReorder: true,

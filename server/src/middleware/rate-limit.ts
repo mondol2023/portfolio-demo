@@ -26,3 +26,12 @@ export const loginRateLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: "rate_limited", message: "Too many login attempts. Please try again in a few minutes." },
 });
+
+/** Generous ceiling on the tracking beacon — fires on every pageview/event, so real traffic can be bursty. */
+export const analyticsRateLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "rate_limited", message: "Too many requests." },
+});

@@ -13,6 +13,7 @@ export const adminProjectsRouter = buildAdminCrudRouter<Project, ProjectInput>({
   create: (input) => projectsRepo.create(input),
   update: (id, patch) => projectsRepo.updateProject(id, patch),
   remove: (id) => projectsRepo.remove(id),
+  replaceAll: (records) => projectsRepo.replaceAll(records),
   invalidateCache: invalidateProjectsCache,
   sortForList: (a, b) => a.order - b.order,
   supportsReorder: true,

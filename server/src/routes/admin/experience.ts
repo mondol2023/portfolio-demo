@@ -12,6 +12,7 @@ export const adminExperienceRouter = buildAdminCrudRouter<Experience, Experience
   create: (input) => experienceRepo.create(input),
   update: (id, patch) => experienceRepo.updateExperience(id, patch),
   remove: (id) => experienceRepo.remove(id),
+  replaceAll: (records) => experienceRepo.replaceAll(records),
   invalidateCache: invalidateExperienceCache,
   sortForList: (a, b) => a.order - b.order,
   supportsReorder: true,
