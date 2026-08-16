@@ -505,11 +505,39 @@ Legend: ✅ done · 🚧 in progress · ⬜ not started
 
 ## Phase 11 — Visitor analytics
 
-- ⬜ Tracking beacon (device/browser/OS parsing, geoip, salted IP hash, bot
-  filtering, batched writes)
-- ⬜ Analytics dashboard (totals/unique/today/week/month, popular pages,
-  referrers, device/browser/OS, geography)
+- ✅ Backend groundwork: shared analytics types/schemas
+  (`shared/src/types/analytics.ts`), UA parsing (`server/src/lib/ua-parse.ts`
+  + an ambient `ua-parser-js` type shim), bot detection, a batched in-process
+  write queue (`server/src/lib/analytics-queue.ts` — flushes on a timer/size
+  threshold rather than one Sheets API call per beacon, per the plan's quota
+  principle), and the aggregation service (`server/src/services/
+  analytics-query.ts`) backing the overview/visitor-list/session-detail
+  queries.
+- ✅ Routes: public `POST /api/analytics/track` (`routes/analytics.ts` — zod-
+  validated, silently drops bot traffic behind a fake 202, salted IP hash +
+  `geoip-lite` country/region only, never the raw IP) and admin
+  `GET /api/admin/analytics/overview`, `GET /api/admin/analytics/visitors`
+  (paginated/sortable), `GET /api/admin/analytics/visitors/:sessionId`
+  (`routes/admin/analytics.ts`, behind `requireAdminAuth`). New
+  `analyticsRateLimiter` (60 req/min — loose, since a beacon fires per
+  pageview/event) added to `middleware/rate-limit.ts`.
+- ✅ Both routers wired into `app.ts` (`/api/admin/analytics` grouped with the
+  other admin routers, `/api/analytics` grouped with the other rate-limited
+  public routers) — fixed a real `noUncheckedIndexedAccess` strict-mode bug
+  surfaced by `tsc --noEmit` while wiring: `req.params.sessionId` types as
+  `string | undefined`, but `getVisitorSessionDetail` requires a `string`;
+  added an explicit guard (400 on a missing id) instead of a non-null
+  assertion. `npm run typecheck` clean across `client`/`server`/`shared`
+  after the fix.
+- ⬜ Frontend tracking beacon (`lib/analyticsBeacon.ts` + `useAnalyticsTracking`
+  hook wired into `RootLayout`, `contact_submit` event instrumentation in
+  `ContactForm.tsx`)
+- ⬜ Seed script demo analytics events (optional, `scripts/seed.ts`)
+- ⬜ Admin analytics dashboard (totals/unique/today/week/month, popular pages,
+  referrers, device/browser/OS, geography — `AdminAnalyticsPage` + recharts)
 - ⬜ Filterable/sortable/paginated visitor table + per-session timeline
+  (`AdminVisitorSessionPage`), both routes wired into `App.tsx` in place of
+  the current `RouteStub`s
 
 ## Phase 12 — SEO
 

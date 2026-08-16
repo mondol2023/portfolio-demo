@@ -16,7 +16,9 @@ import { adminSkillsRouter } from "./routes/admin/skills";
 import { adminExperienceRouter } from "./routes/admin/experience";
 import { adminSiteContentRouter } from "./routes/admin/site-content";
 import { adminAuditLogRouter } from "./routes/admin/audit-log";
-import { contactRateLimiter, publicApiRateLimiter } from "./middleware/rate-limit";
+import { adminAnalyticsRouter } from "./routes/admin/analytics";
+import { analyticsRouter } from "./routes/analytics";
+import { contactRateLimiter, publicApiRateLimiter, analyticsRateLimiter } from "./middleware/rate-limit";
 
 export function createApp(): Express {
   const app = express();
@@ -66,12 +68,14 @@ export function createApp(): Express {
   app.use("/api/admin/experience", adminExperienceRouter);
   app.use("/api/admin/site-content", adminSiteContentRouter);
   app.use("/api/admin/audit-log", adminAuditLogRouter);
+  app.use("/api/admin/analytics", adminAnalyticsRouter);
   app.use("/api/contact", contactRateLimiter, contactRouter);
   app.use("/api/projects", publicApiRateLimiter, projectsRouter);
   app.use("/api/blog", publicApiRateLimiter, blogRouter);
   app.use("/api/skills", publicApiRateLimiter, skillsRouter);
   app.use("/api/experience", publicApiRateLimiter, experienceRouter);
   app.use("/api/site-content", publicApiRateLimiter, siteContentRouter);
+  app.use("/api/analytics", analyticsRateLimiter, analyticsRouter);
 
   app.use((_req: Request, res: Response) => {
     res.status(404).json({ error: "not_found", message: "Route not found" });

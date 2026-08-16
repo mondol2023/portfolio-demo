@@ -38,7 +38,12 @@ adminAnalyticsRouter.get("/visitors", async (req: Request, res: Response, next: 
 
 adminAnalyticsRouter.get("/visitors/:sessionId", async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const detail = await getVisitorSessionDetail(req.params.sessionId);
+    const sessionId = req.params.sessionId;
+    if (!sessionId) {
+      res.status(400).json({ error: "bad_request", message: "sessionId is required." });
+      return;
+    }
+    const detail = await getVisitorSessionDetail(sessionId);
     if (!detail) {
       res.status(404).json({ error: "not_found", message: "No session found with that id." });
       return;

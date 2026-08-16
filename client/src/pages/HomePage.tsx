@@ -13,6 +13,7 @@ import { ContactForm } from "@/components/contact/ContactForm";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { staggerContainer, fadeUp } from "@/lib/animations/variants";
 import { useReducedMotion } from "@/hooks/useReducedMotion";
+import { trackEvent } from "@/lib/analyticsBeacon";
 import { techIcons } from "@/lib/tech-icons";
 import { cn } from "@/lib/cn";
 import { Button, Badge } from "@/components/ui";
@@ -111,13 +112,31 @@ export function HomePage() {
                 <Button onClick={() => document.getElementById("projects")?.scrollIntoView({ behavior: "smooth" })}>
                   View projects <FiArrowRight aria-hidden="true" />
                 </Button>
-                <Button variant="outline" onClick={() => window.open(heroGithubUrl, "_blank", "noopener,noreferrer")}>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    trackEvent("/", "github_click");
+                    window.open(heroGithubUrl, "_blank", "noopener,noreferrer");
+                  }}
+                >
                   <FiGithub aria-hidden="true" /> GitHub
                 </Button>
-                <Button variant="outline" onClick={() => window.open(heroLinkedinUrl, "_blank", "noopener,noreferrer")}>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    trackEvent("/", "linkedin_click");
+                    window.open(heroLinkedinUrl, "_blank", "noopener,noreferrer");
+                  }}
+                >
                   <FiLinkedin aria-hidden="true" /> LinkedIn
                 </Button>
-                <Button variant="ghost" onClick={() => window.open(heroResumeUrl, "_blank", "noopener,noreferrer")}>
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    trackEvent("/", "resume_click");
+                    window.open(heroResumeUrl, "_blank", "noopener,noreferrer");
+                  }}
+                >
                   <FiFileText aria-hidden="true" /> Resume
                 </Button>
               </motion.div>

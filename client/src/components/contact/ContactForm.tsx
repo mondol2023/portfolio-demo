@@ -6,6 +6,7 @@ import { contactInputSchema, type ContactInput } from "@portfolio/shared";
 import { Input, Textarea, Button } from "@/components/ui";
 import { useToast } from "@/hooks/useToast";
 import { ApiError, postJson } from "@/lib/api";
+import { trackEvent } from "@/lib/analyticsBeacon";
 import { motionTokens, springs } from "@/lib/animations/tokens";
 
 /**
@@ -29,6 +30,7 @@ export function ContactForm() {
   async function onSubmit(data: ContactInput) {
     try {
       await postJson("/api/contact", data);
+      trackEvent(window.location.pathname, "contact_submit");
       toast({
         title: "Message sent",
         description: "Thanks for reaching out — I'll get back to you soon.",

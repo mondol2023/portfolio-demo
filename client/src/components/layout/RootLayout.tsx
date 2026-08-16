@@ -3,9 +3,11 @@ import { Navbar } from "./Navbar";
 import { Footer } from "./Footer";
 import { PageTransition } from "@/components/animations/PageTransition";
 import { useScrollToHash } from "@/hooks/useScrollToHash";
+import { useAnalyticsTracking } from "@/hooks/useAnalyticsTracking";
 
 export function RootLayout() {
   useScrollToHash();
+  useAnalyticsTracking();
 
   return (
     <div className="flex min-h-svh flex-col">
